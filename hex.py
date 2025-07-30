@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 import random
 import networkx as nx
 import matplotlib.pyplot as plt
+import argparse
 
 class HexSide(IntEnum):
     """Enumeration for hexagon sides, numbered 0-5"""
@@ -97,7 +98,7 @@ class HexagonGrid(BaseModel):
                 return hex
         return None
     
-    def extract_territory_graph(self, save_image: bool = True) -> nx.Graph:
+    def extract_territory_graph(self, save_image: bool = True, use_colors: bool = False, show_ids: bool = False) -> nx.Graph:
         """
         Extract the full territory graph from the hexagon grid using Kamada-Kawai layout.
         """
@@ -139,11 +140,11 @@ class HexagonGrid(BaseModel):
         
         # Step 4: Visualize with kamada-kawai layout
         if save_image:
-            self._visualize_territory_graph(graph)
+            self._visualize_territory_graph(graph, use_colors, show_ids)
         
         return graph
     
-    def _visualize_territory_graph(self, graph: nx.Graph):
+    def _visualize_territory_graph(self, graph: nx.Graph, use_colors: bool = False, show_ids: bool = False):
         """Create a visual representation using kamada-kawai layout for even distribution"""
         plt.figure(figsize=(12, 8))
         
@@ -156,30 +157,34 @@ class HexagonGrid(BaseModel):
             pos = nx.spring_layout(graph, k=2, iterations=100)
             layout_used = "spring"
         
-        # Draw nodes with different colors for different hexagons
-        hexagon_colors = {}
-        color_map = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'yellow']
-        
-        for i, hexagon in enumerate(self.hexagons):
-            hexagon_colors[str(hexagon.hex_id)] = color_map[i % len(color_map)]
-        
-        node_colors = []
-        for node in graph.nodes():
-            hex_id = graph.nodes[node]['hexagon_id']
-            node_colors.append(hexagon_colors[hex_id])
+        # Draw nodes with different colors for different hexagons or light grey
+        if use_colors:
+            hexagon_colors = {}
+            color_map = ['red', 'blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'yellow']
+            
+            for i, hexagon in enumerate(self.hexagons):
+                hexagon_colors[str(hexagon.hex_id)] = color_map[i % len(color_map)]
+            
+            node_colors = []
+            for node in graph.nodes():
+                hex_id = graph.nodes[node]['hexagon_id']
+                node_colors.append(hexagon_colors[hex_id])
+        else:
+            node_colors = ['lightgrey'] * len(graph.nodes())
         
         # Draw internal edges (solid lines)
         internal_edges = [(u, v) for u, v, d in graph.edges(data=True) if d.get('connection_type') == 'internal']
         inter_edges = [(u, v) for u, v, d in graph.edges(data=True) if d.get('connection_type') == 'inter_hexagon']
         
         # Draw the graph
-        nx.draw_networkx_nodes(graph, pos, node_color=node_colors, node_size=300, alpha=0.8)
+        nx.draw_networkx_nodes(graph, pos, node_color=node_colors, node_size=4000, alpha=0.8)
         nx.draw_networkx_edges(graph, pos, edgelist=internal_edges, edge_color='black', width=2, alpha=0.6)
         nx.draw_networkx_edges(graph, pos, edgelist=inter_edges, edge_color='red', width=3, alpha=0.8, style='dashed')
         
-        # Add labels with short node IDs
-        labels = {node: node[:8] for node in graph.nodes()}
-        nx.draw_networkx_labels(graph, pos, labels, font_size=8)
+        # Add labels with short node IDs if requested
+        if show_ids:
+            labels = {node: node[:8] for node in graph.nodes()}
+            nx.draw_networkx_labels(graph, pos, labels, font_size=8)
         
         plt.title(f"Territory Graph - {layout_used.title()} Layout\n(Black lines: internal connections, Red dashed: inter-hexagon connections)")
         plt.axis('off')
@@ -282,14 +287,61 @@ class HexagonArchetypes:
     @staticmethod 
     def create_random() -> Hexagon:
         """Create a random archetype hexagon"""
-        if random.choice([True, False]):
+        choice = random.choice(['triple', 'diamond', 'five'])
+        if choice == 'triple':
             return HexagonArchetypes.create_triple()
-        else:
+        elif choice == 'diamond':
             return HexagonArchetypes.create_diamond()
+        else:
+            return HexagonArchetypes.create_five()
+
+    @staticmethod
+    def create_five() -> Hexagon:
+        """
+        Creates a five hexagon with five territories:
+        - Territory 1: touches side 0
+        - Territory 2: touches side 1
+        - Territory 3: touches side 2
+        - Territory 4: touches sides 3 and 4
+        - Territory 5: touches side 5
+        
+        Internal connections:
+        T1-T2, T1-T5, T1-T3, T2-T3, T4-T3, T4-T5, T3-T5
+        """
+        # Create five unique territories
+        territory_1 = Territory(touching_sides={HexSide.SIDE_0})
+        territory_2 = Territory(touching_sides={HexSide.SIDE_1})
+        territory_3 = Territory(touching_sides={HexSide.SIDE_2})
+        territory_4 = Territory(touching_sides={HexSide.SIDE_3, HexSide.SIDE_4})
+        territory_5 = Territory(touching_sides={HexSide.SIDE_5})
+        
+        # Create internal edges based on specification
+        internal_edges = [
+            (territory_1, territory_2),
+            (territory_1, territory_5),
+            (territory_1, territory_3),
+            (territory_2, territory_3),
+            (territory_4, territory_3),
+            (territory_4, territory_5),
+            (territory_3, territory_5)
+        ]
+        
+        # Create and return the hexagon
+        return Hexagon(
+            territories=[territory_1, territory_2, territory_3, territory_4, territory_5],
+            internal_edges=internal_edges
+        )
 
 
 def main():
     """Create a hexagon ring of 6 hexagons (like a Catan board section)"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Generate hexagon territory graph')
+    parser.add_argument('--color', action='store_true', 
+                        help='Use different colors for nodes from different hexagons (default: light grey)')
+    parser.add_argument('--showids', action='store_true',
+                        help='Show territory IDs on nodes (default: no IDs)')
+    args = parser.parse_args()
     grid = HexagonGrid()
     
     # Create first hexagon
@@ -395,7 +447,7 @@ def main():
     
     # Extract and visualize the territory graph
     print("\nExtracting territory graph...")
-    territory_graph = grid.extract_territory_graph()
+    territory_graph = grid.extract_territory_graph(save_image=True, use_colors=args.color, show_ids=args.showids)
     
     return grid
 
