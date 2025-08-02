@@ -10,9 +10,9 @@ class HexagonArchetypes:
     """Factory class for creating different hexagon archetype patterns"""
     
     @staticmethod
-    def create_triple() -> Hexagon:
+    def create_triple_standard() -> Hexagon:
         """
-        Creates a triple hexagon with three territories:
+        Creates a standard triple hexagon with three territories:
         - Territory 1: touches sides 0 and 1
         - Territory 2: touches sides 2 and 3  
         - Territory 3: touches sides 4 and 5
@@ -37,9 +37,9 @@ class HexagonArchetypes:
         )
     
     @staticmethod
-    def create_diamond() -> Hexagon:
+    def create_diamond_standard() -> Hexagon:
         """
-        Creates a diamond hexagon with four territories:
+        Creates a standard diamond hexagon with four territories:
         - Territory 1: touches sides 0 and 1, connects to territories 2 and 3
         - Territory 2: touches side 5, connects to territories 1, 3, and 4
         - Territory 3: touches side 2, connects to territories 1, 2, and 4  
@@ -52,6 +52,95 @@ class HexagonArchetypes:
         territory_4 = Territory(touching_sides={HexSide.SIDE_3, HexSide.SIDE_4})
         
         # Create internal edges - diamond pattern
+        internal_edges = [
+            (territory_1, territory_2),
+            (territory_1, territory_3),
+            (territory_2, territory_3),
+            (territory_4, territory_2),
+            (territory_4, territory_3)
+        ]
+        
+        # Create and return the hexagon
+        return Hexagon(
+            territories=[territory_1, territory_2, territory_3, territory_4],
+            internal_edges=internal_edges
+        )
+    
+    @staticmethod
+    def create_triple_expanded() -> Hexagon:
+        """
+        Creates an expanded triple hexagon with three territories:
+        - Territory 1: touches sides 0, 1, and 2
+        - Territory 2: touches sides 2, 3, and 4
+        - Territory 3: touches sides 4, 5, and 0
+        All territories are connected to each other internally (same as standard).
+        """
+        # Create three unique territories
+        territory_1 = Territory(touching_sides={HexSide.SIDE_0, HexSide.SIDE_1, HexSide.SIDE_2})
+        territory_2 = Territory(touching_sides={HexSide.SIDE_2, HexSide.SIDE_3, HexSide.SIDE_4})
+        territory_3 = Territory(touching_sides={HexSide.SIDE_4, HexSide.SIDE_5, HexSide.SIDE_0})
+        
+        # Create internal edges - all territories connected to each other (same as standard triple)
+        internal_edges = [
+            (territory_1, territory_2),
+            (territory_2, territory_3),
+            (territory_1, territory_3)
+        ]
+        
+        # Create and return the hexagon
+        return Hexagon(
+            territories=[territory_1, territory_2, territory_3],
+            internal_edges=internal_edges
+        )
+    
+    @staticmethod
+    def create_diamond_expanded() -> Hexagon:
+        """
+        Creates an expanded diamond hexagon with four territories:
+        - Territory 1: touches sides 0 and 1
+        - Territory 2: touches sides 4 and 5
+        - Territory 3: touches sides 1 and 2
+        - Territory 4: touches sides 3 and 4
+        Internal connections same as standard diamond pattern.
+        """
+        # Create four unique territories
+        territory_1 = Territory(touching_sides={HexSide.SIDE_0, HexSide.SIDE_1})
+        territory_2 = Territory(touching_sides={HexSide.SIDE_4, HexSide.SIDE_5})
+        territory_3 = Territory(touching_sides={HexSide.SIDE_1, HexSide.SIDE_2})
+        territory_4 = Territory(touching_sides={HexSide.SIDE_3, HexSide.SIDE_4})
+        
+        # Create internal edges - diamond pattern (same as standard)
+        internal_edges = [
+            (territory_1, territory_2),
+            (territory_1, territory_3),
+            (territory_2, territory_3),
+            (territory_4, territory_2),
+            (territory_4, territory_3)
+        ]
+        
+        # Create and return the hexagon
+        return Hexagon(
+            territories=[territory_1, territory_2, territory_3, territory_4],
+            internal_edges=internal_edges
+        )
+    
+    @staticmethod
+    def create_diamond_maximal() -> Hexagon:
+        """
+        Creates a maximal diamond hexagon with four territories:
+        - Territory 1: touches sides 5, 0, and 1
+        - Territory 2: touches sides 4 and 5
+        - Territory 3: touches sides 1 and 2
+        - Territory 4: touches sides 2, 3, and 4
+        Internal connections same as standard diamond pattern.
+        """
+        # Create four unique territories
+        territory_1 = Territory(touching_sides={HexSide.SIDE_5, HexSide.SIDE_0, HexSide.SIDE_1})
+        territory_2 = Territory(touching_sides={HexSide.SIDE_4, HexSide.SIDE_5})
+        territory_3 = Territory(touching_sides={HexSide.SIDE_1, HexSide.SIDE_2})
+        territory_4 = Territory(touching_sides={HexSide.SIDE_2, HexSide.SIDE_3, HexSide.SIDE_4})
+        
+        # Create internal edges - diamond pattern (same as standard)
         internal_edges = [
             (territory_1, territory_2),
             (territory_1, territory_3),
@@ -89,7 +178,7 @@ class HexagonArchetypes:
         )
     
     @staticmethod
-    def create_five() -> Hexagon:
+    def create_five_standard() -> Hexagon:
         """
         Creates a five hexagon with five territories:
         - Territory 1: touches side 0
@@ -130,8 +219,8 @@ class HexagonArchetypes:
         """Create a random archetype hexagon"""
         choice = random.choice(['triple', 'diamond', 'five'])
         if choice == 'triple':
-            return HexagonArchetypes.create_triple()
+            return HexagonArchetypes.create_triple_standard()
         elif choice == 'diamond':
-            return HexagonArchetypes.create_diamond()
+            return HexagonArchetypes.create_diamond_standard()
         else:
-            return HexagonArchetypes.create_five()
+            return HexagonArchetypes.create_five_standard()

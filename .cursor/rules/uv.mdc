@@ -1,0 +1,4 @@
+---
+alwaysApply: true
+---
+You should always use uv to run python files, install dependencies, etc.

@@ -16,8 +16,8 @@ class TerritoryVisualizer:
         self.grid = grid
     
     def visualize_territory_graph(self, graph: nx.Graph, use_colors: bool = False, 
-                                show_ids: bool = False, output_filename: str = None, 
-                                supply_territories: List[str] = None):
+                                show_ids: bool = False, show_touching_sides: bool = False,
+                                output_filename: str = None, supply_territories: List[str] = None):
         """Create a visual representation using kamada-kawai layout for even distribution"""
         plt.figure(figsize=(12, 8))
         
@@ -69,9 +69,27 @@ class TerritoryVisualizer:
             nx.draw_networkx_nodes(graph, supply_pos, nodelist=supply_nodes, node_color=supply_colors, 
                                  node_size=4000, alpha=0.8, edgecolors='black', linewidths=3)
         
-        # Add labels with short node IDs if requested
-        if show_ids:
-            labels = {node: node[:8] for node in graph.nodes()}
+        # Add labels with node IDs and/or touching sides if requested
+        if show_ids or show_touching_sides:
+            labels = {}
+            for node in graph.nodes():
+                label_parts = []
+                
+                # Add node ID if requested
+                if show_ids:
+                    label_parts.append(node[:8])
+                
+                # Add touching sides if requested
+                if show_touching_sides:
+                    # Find the territory object to get touching_sides
+                    territory_obj = self._find_territory_by_id(node)
+                    if territory_obj:
+                        sides = sorted(list(territory_obj.touching_sides))
+                        sides_str = ', '.join(f"Side {s.value}" for s in sides)
+                        label_parts.append(sides_str)
+                
+                labels[node] = '\n'.join(label_parts)
+            
             nx.draw_networkx_labels(graph, pos, labels, font_size=8)
         
         plt.title(f"Territory Graph - {layout_used.title()} Layout\n(Black lines: internal connections, Red dashed: inter-hexagon connections)")
@@ -97,9 +115,18 @@ class TerritoryVisualizer:
         if supply_territories:
             print(f"Supply territories outlined: {len(supply_territories)}")
     
+    def _find_territory_by_id(self, territory_id: str):
+        """Find a territory object by its ID string"""
+        for hexagon in self.grid.hexagons:
+            for territory in hexagon.territories:
+                if str(territory.territory_id) == territory_id:
+                    return territory
+        return None
+    
     def create_and_save_visualization(self, use_colors: bool = False, show_ids: bool = False, 
-                                    output_filename: str = None, supply_territories: List[str] = None):
+                                    show_touching_sides: bool = False, output_filename: str = None, 
+                                    supply_territories: List[str] = None):
         """Extract territory graph and create visualization in one step"""
         graph = self.grid.extract_territory_graph()
-        self.visualize_territory_graph(graph, use_colors, show_ids, output_filename, supply_territories)
+        self.visualize_territory_graph(graph, use_colors, show_ids, show_touching_sides, output_filename, supply_territories)
         return graph

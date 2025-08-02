@@ -6,6 +6,7 @@ from typing import List, Tuple, Optional
 from pydantic import BaseModel
 from uuid import UUID
 import networkx as nx
+import random
 
 from .models import Hexagon, HexSide
 
@@ -100,9 +101,78 @@ class HexagonGrid(BaseModel):
             hex1_territories = [t for t in hex1.territories if side1 in t.touching_sides]
             hex2_territories = [t for t in hex2.territories if side2 in t.touching_sides]
             
-            # Connect all territories from side1 to all territories from side2
-            for t1 in hex1_territories:
-                for t2 in hex2_territories:
-                    graph.add_edge(str(t1.territory_id), str(t2.territory_id), connection_type="inter_hexagon")
+            # Smart connection logic based on territory positioning
+            connections = self._get_smart_territory_connections(hex1_territories, hex2_territories, side1, side2)
+            
+            # Add connections to graph
+            for t1, t2 in connections:
+                graph.add_edge(str(t1.territory_id), str(t2.territory_id), connection_type="inter_hexagon")
         
         return graph
+    
+    def _get_smart_territory_connections(self, hex1_territories, hex2_territories, side1, side2):
+        """
+        Smart connection logic for territories on touching hexagon sides.
+        Handles the case where both sides have 2 territories by using spatial positioning.
+        """
+        # Case 1: Either side has only 1 territory - use all-to-all (simple case)
+        if len(hex1_territories) == 1 or len(hex2_territories) == 1:
+            connections = []
+            for t1 in hex1_territories:
+                for t2 in hex2_territories:
+                    connections.append((t1, t2))
+            return connections
+        
+        # Case 2: Both sides have 2 territories - use spatial matching
+        if len(hex1_territories) == 2 and len(hex2_territories) == 2:
+            # Determine which territory is at "start" vs "end" of each side
+            def get_territory_position(territory, side):
+                prev_side = HexSide((side - 1) % 6)
+                next_side = HexSide((side + 1) % 6)
+                
+                if prev_side in territory.touching_sides:
+                    return 'start'  # Territory at counter-clockwise end
+                elif next_side in territory.touching_sides:
+                    return 'end'    # Territory at clockwise end
+                else:
+                    return 'middle' # Territory only touches this side
+            
+            # Categorize territories by position
+            hex1_start = [t for t in hex1_territories if get_territory_position(t, side1) == 'start']
+            hex1_end = [t for t in hex1_territories if get_territory_position(t, side1) == 'end']
+            hex2_start = [t for t in hex2_territories if get_territory_position(t, side2) == 'start']
+            hex2_end = [t for t in hex2_territories if get_territory_position(t, side2) == 'end']
+            
+            connections = []
+            
+            # Connect start of side1 to end of side2 (spatial alignment)
+            for t1 in hex1_start:
+                for t2 in hex2_end:
+                    connections.append((t1, t2))
+            
+            # Connect end of side1 to start of side2 (spatial alignment)
+            for t1 in hex1_end:
+                for t2 in hex2_start:
+                    connections.append((t1, t2))
+            
+            # Optional: Add one diagonal connection (as mentioned in logic.md)
+            if hex1_start and hex1_end and hex2_start and hex2_end:
+                if random.choice([True, False]):
+                    # Connect start-to-start
+                    for t1 in hex1_start:
+                        for t2 in hex2_start:
+                            connections.append((t1, t2))
+                else:
+                    # Connect end-to-end
+                    for t1 in hex1_end:
+                        for t2 in hex2_end:
+                            connections.append((t1, t2))
+            
+            return connections
+        
+        # Fallback: use all-to-all for any other cases
+        connections = []
+        for t1 in hex1_territories:
+            for t2 in hex2_territories:
+                connections.append((t1, t2))
+        return connections
