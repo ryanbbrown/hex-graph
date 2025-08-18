@@ -1,0 +1,1 @@
+uv run scripts/generate_map.py --archetypes expanded_only --supplydist algo --center triple_standard --output triple_standard_center.png

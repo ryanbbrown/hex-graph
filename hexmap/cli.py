@@ -92,14 +92,27 @@ def _create_supply_territories_algo(grid: HexagonGrid, num_supply: int, max_retr
                 # Remove the selected territory and all territories within 2 edges
                 territories_to_remove = set([selected_territory])
                 
-                # Find all territories within 2 edges using BFS
+                # Find all territories within 2 edges using proper BFS
+                current_frontier = set([selected_territory])
+                visited = set([selected_territory])
+                
+                # BFS for distance 1 and 2
                 for distance in range(1, 3):  # distance 1 and 2
-                    new_territories_to_remove = set()
-                    for territory in territories_to_remove:
+                    next_frontier = set()
+                    for territory in current_frontier:
                         if territory in territory_graph:
                             neighbors = set(territory_graph.neighbors(territory))
-                            new_territories_to_remove.update(neighbors)
-                    territories_to_remove.update(new_territories_to_remove)
+                            # Only add neighbors we haven't visited yet
+                            new_neighbors = neighbors - visited
+                            next_frontier.update(new_neighbors)
+                            visited.update(new_neighbors)
+                    
+                    territories_to_remove.update(next_frontier)
+                    current_frontier = next_frontier
+                    
+                    # If no more territories to expand from, we're done
+                    if not current_frontier:
+                        break
                 
                 # Remove all these territories from available set
                 available_territories -= territories_to_remove
