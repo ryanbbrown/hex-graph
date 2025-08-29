@@ -20,7 +20,7 @@ def create_supply_territories(grid: HexagonGrid, supply_mode: str, num_supply: i
     
     Args:
         grid: The hexagon grid containing all territories
-        supply_mode: 'none', 'random', 'oneperhex', or 'algo'
+        supply_mode: 'none', 'random', 'oneperhex', 'algo', or 'oneapart'
         num_supply: Number of supply centers to select
     
     Returns:
@@ -54,6 +54,10 @@ def create_supply_territories(grid: HexagonGrid, supply_mode: str, num_supply: i
     elif supply_mode == 'algo':
         # Algorithm to ensure supply centers are at least 2 edges apart
         return _create_supply_territories_algo(grid, num_supply)
+    
+    elif supply_mode == 'oneapart':
+        # Algorithm to prefer territories with one territory between them
+        return _create_supply_territories_oneapart(grid, num_supply)
     
     return None
 
@@ -130,12 +134,77 @@ def _create_supply_territories_algo(grid: HexagonGrid, num_supply: int, max_retr
                       f"This may indicate the graph is too small or dense for the requested number of supply centers.")
 
 
+def _create_supply_territories_oneapart(grid: HexagonGrid, num_supply: int) -> List[str]:
+    """
+    Create supply territories using algorithm that prefers territories with one territory between them.
+    When no more one-apart positions are available, place remaining supply centers randomly.
+    
+    Args:
+        grid: The hexagon grid containing all territories
+        num_supply: Number of supply centers to select
+    
+    Returns:
+        List of territory IDs for supply centers
+    """
+    
+    # Get the territory graph
+    territory_graph = grid.extract_territory_graph()
+    all_territory_ids = list(territory_graph.nodes())
+    
+    if num_supply > len(all_territory_ids):
+        raise ValueError(f"Cannot select {num_supply} supply centers from only {len(all_territory_ids)} territories")
+    
+    selected_supply_centers = []
+    available_territories = set(all_territory_ids)
+    
+    # Phase 1: Select territories with one territory between them (distance = 2)
+    while len(selected_supply_centers) < num_supply and available_territories:
+        # Find a territory that is distance 2 from all existing supply centers
+        found_oneapart = False
+        
+        for candidate in list(available_territories):
+            is_oneapart_valid = True
+            
+            # Check if this candidate is exactly distance 2 from all existing supply centers
+            for existing_supply in selected_supply_centers:
+                try:
+                    # Calculate shortest path distance between candidate and existing supply center
+                    distance = nx.shortest_path_length(territory_graph, candidate, existing_supply)
+                    if distance < 2:  # Too close (adjacent or same)
+                        is_oneapart_valid = False
+                        break
+                except nx.NetworkXNoPath:
+                    # If no path exists, that's fine - they're in separate components
+                    continue
+            
+            if is_oneapart_valid:
+                selected_supply_centers.append(candidate)
+                available_territories.remove(candidate)
+                found_oneapart = True
+                break
+        
+        # If we couldn't find any one-apart territories, break out of this phase
+        if not found_oneapart:
+            break
+    
+    # Phase 2: If we still need more supply centers, place them randomly
+    remaining_needed = num_supply - len(selected_supply_centers)
+    if remaining_needed > 0 and available_territories:
+        random_selections = random.sample(
+            list(available_territories), 
+            min(remaining_needed, len(available_territories))
+        )
+        selected_supply_centers.extend(random_selections)
+    
+    return selected_supply_centers
+
+
 def create_random_archetype(archetype_filter: str) -> object:
     """
     Create a random archetype based on the specified filter.
     
     Args:
-        archetype_filter: 'standard_only', 'expanded_only', or 'all'
+        archetype_filter: 'standard_only', 'expanded_only', 'nofive', or 'all'
     
     Returns:
         A randomly selected hexagon archetype
@@ -144,6 +213,8 @@ def create_random_archetype(archetype_filter: str) -> object:
         choices = ['triple_standard', 'diamond_standard', 'five_standard']
     elif archetype_filter == 'expanded_only':
         choices = ['triple_expanded', 'diamond_expanded', 'diamond_maximal']
+    elif archetype_filter == 'nofive':
+        choices = ['triple_standard', 'diamond_standard', 'triple_expanded', 'diamond_expanded', 'diamond_maximal']
     else:  # 'all'
         choices = ['triple_standard', 'diamond_standard', 'five_standard', 
                   'triple_expanded', 'diamond_expanded', 'diamond_maximal']
@@ -330,10 +401,10 @@ def main():
                         default='random', help='Center hexagon archetype (default: random)')
     parser.add_argument('--numsupply', type=int, default=5,
                         help='Number of supply centers to select (default: 5)')
-    parser.add_argument('--supplydist', type=str, choices=['none', 'random', 'oneperhex', 'algo'], 
-                        default='none', help='Supply territory distribution: none, random, oneperhex (requires numsupply=7), or algo (min 2-edge distance) (default: none)')
-    parser.add_argument('--archetypes', '-a', type=str, choices=['standard_only', 'expanded_only', 'all'], 
-                        default='all', help='Archetype types for ring hexagons: standard_only, expanded_only, or all (default: all)')
+    parser.add_argument('--supplydist', type=str, choices=['none', 'random', 'oneperhex', 'algo', 'oneapart'], 
+                        default='none', help='Supply territory distribution: none, random, oneperhex (requires numsupply=7), algo (min 2-edge distance), or oneapart (prefers 1 territory between, then random) (default: none)')
+    parser.add_argument('--archetypes', '-a', type=str, choices=['standard_only', 'expanded_only', 'nofive', 'all'], 
+                        default='all', help='Archetype types for ring hexagons: standard_only, expanded_only, nofive (excludes five-territory types), or all (default: all)')
     args = parser.parse_args()
     
     # Create the hexagon grid
