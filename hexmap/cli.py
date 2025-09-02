@@ -36,10 +36,7 @@ def create_supply_territories(grid: HexagonGrid, supply_mode: str, num_supply: i
             all_territories.append(str(territory.territory_id))
     
     if supply_mode == 'oneperhex':
-        if num_supply != 7:
-            raise ValueError(f"oneperhex mode requires exactly 7 supply centers (one per hexagon), but {num_supply} was requested")
-        
-        # Select one territory from each hexagon
+        # Select one territory from each hexagon (ignores num_supply argument)
         supply_territories = []
         for hexagon in grid.hexagons:
             if hexagon.territories:
@@ -235,13 +232,14 @@ def create_random_archetype(archetype_filter: str) -> object:
         return HexagonArchetypes.create_diamond_maximal()
 
 
-def create_hexagon_ring(center_type: str, archetype_filter: str = 'all') -> HexagonGrid:
+def create_hexagon_ring(center_type: str, archetype_filter: str = 'all', extra_large: bool = False) -> HexagonGrid:
     """
     Create a hexagon ring of 6 hexagons (like a Catan board section) with center hex
     
     Args:
         center_type: Type of center hexagon ('single', 'diamond', 'triple', 'five', 'random')
         archetype_filter: Filter for ring hexagon archetypes ('standard_only', 'expanded_only', 'all')
+        extra_large: If True, adds 3 additional hexagons to create a larger configuration
     """
     grid = HexagonGrid()
     
@@ -377,6 +375,81 @@ def create_hexagon_ring(center_type: str, archetype_filter: str = 'all') -> Hexa
     
     print("Connected center hexagon to all ring hexagons!")
     
+    # Create additional hexagons if extra_large is True
+    if extra_large:
+        # Create hex8 - connects south edge to north edge of hex5
+        hex8 = create_random_archetype(archetype_filter)
+        hex8.rotation = random.randint(0, 5)
+        grid.add_hexagon(
+            hex8,
+            connect_to_hex_id=hex5.hex_id,
+            connect_my_side=hex8.get_side_by_direction(HexDirection.SOUTH),
+            connect_their_side=hex5.get_side_by_direction(HexDirection.NORTH)
+        )
+        print(f"Created hex8: {'triple' if len(hex8.territories) == 3 else 'diamond' if len(hex8.territories) == 4 else 'five'}, rotation={hex8.rotation}")
+        
+        # Create hex9 - connects south edge to north edge of hex4
+        hex9 = create_random_archetype(archetype_filter)
+        hex9.rotation = random.randint(0, 5)
+        grid.add_hexagon(
+            hex9,
+            connect_to_hex_id=hex4.hex_id,
+            connect_my_side=hex9.get_side_by_direction(HexDirection.SOUTH),
+            connect_their_side=hex4.get_side_by_direction(HexDirection.NORTH)
+        )
+        print(f"Created hex9: {'triple' if len(hex9.territories) == 3 else 'diamond' if len(hex9.territories) == 4 else 'five'}, rotation={hex9.rotation}")
+        
+        # Create hex10 - connects south edge to north edge of hex3
+        hex10 = create_random_archetype(archetype_filter)
+        hex10.rotation = random.randint(0, 5)
+        grid.add_hexagon(
+            hex10,
+            connect_to_hex_id=hex3.hex_id,
+            connect_my_side=hex10.get_side_by_direction(HexDirection.SOUTH),
+            connect_their_side=hex3.get_side_by_direction(HexDirection.NORTH)
+        )
+        print(f"Created hex10: {'triple' if len(hex10.territories) == 3 else 'diamond' if len(hex10.territories) == 4 else 'five'}, rotation={hex10.rotation}")
+        
+        # Add connections between the new hexagons
+        # hex8 northeast to hex9 southwest
+        grid.hex_connections.append((
+            hex8.hex_id,
+            hex8.get_side_by_direction(HexDirection.NORTHEAST),
+            hex9.hex_id,
+            hex9.get_side_by_direction(HexDirection.SOUTHWEST)
+        ))
+        print("Connected hex8 northeast to hex9 southwest")
+        
+        # hex9 southeast to hex10 northwest
+        grid.hex_connections.append((
+            hex9.hex_id,
+            hex9.get_side_by_direction(HexDirection.SOUTHEAST),
+            hex10.hex_id,
+            hex10.get_side_by_direction(HexDirection.NORTHWEST)
+        ))
+        print("Connected hex9 southeast to hex10 northwest")
+        
+        # Additional connections to hex4
+        # hex8 southeast to hex4 northwest
+        grid.hex_connections.append((
+            hex8.hex_id,
+            hex8.get_side_by_direction(HexDirection.SOUTHEAST),
+            hex4.hex_id,
+            hex4.get_side_by_direction(HexDirection.NORTHWEST)
+        ))
+        print("Connected hex8 southeast to hex4 northwest")
+        
+        # hex10 southwest to hex4 northeast
+        grid.hex_connections.append((
+            hex10.hex_id,
+            hex10.get_side_by_direction(HexDirection.SOUTHWEST),
+            hex4.hex_id,
+            hex4.get_side_by_direction(HexDirection.NORTHEAST)
+        ))
+        print("Connected hex10 southwest to hex4 northeast")
+        
+        print("Created extra large configuration with 3 additional hexagons!")
+    
     # Print summary
     print(f"\nCreated hexagon grid with {len(grid.hexagons)} hexagons and {len(grid.hex_connections)} connections")
     for i, connection in enumerate(grid.hex_connections):
@@ -402,13 +475,15 @@ def main():
     parser.add_argument('--numsupply', type=int, default=5,
                         help='Number of supply centers to select (default: 5)')
     parser.add_argument('--supplydist', type=str, choices=['none', 'random', 'oneperhex', 'algo', 'oneapart'], 
-                        default='none', help='Supply territory distribution: none, random, oneperhex (requires numsupply=7), algo (min 2-edge distance), or oneapart (prefers 1 territory between, then random) (default: none)')
+                        default='none', help='Supply territory distribution: none, random, oneperhex (one per hexagon, ignores numsupply), algo (min 2-edge distance), or oneapart (prefers 1 territory between, then random) (default: none)')
     parser.add_argument('--archetypes', '-a', type=str, choices=['standard_only', 'expanded_only', 'nofive', 'all'], 
                         default='all', help='Archetype types for ring hexagons: standard_only, expanded_only, nofive (excludes five-territory types), or all (default: all)')
+    parser.add_argument('--extralarge', action='store_true',
+                        help='Create extra large configuration with 3 additional hexagons (default: False)')
     args = parser.parse_args()
     
     # Create the hexagon grid
-    grid = create_hexagon_ring(args.center, args.archetypes)
+    grid = create_hexagon_ring(args.center, args.archetypes, args.extralarge)
     
     # Create supply territories
     supply_territories = create_supply_territories(grid, args.supplydist, args.numsupply)
